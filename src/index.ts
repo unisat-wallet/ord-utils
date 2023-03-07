@@ -1,7 +1,7 @@
 import { OrdTransaction, UnspentOutput } from "./OrdTransaction";
 import { OrdUnspendOutput, UTXO_DUST } from "./OrdUnspendOutput";
 
-export function createSendBTC({
+export async function createSendBTC({
   utxos,
   toAddress,
   toAmount,
@@ -18,49 +18,107 @@ export function createSendBTC({
 }) {
   const tx = new OrdTransaction(wallet, network);
   tx.setChangeAddress(changeAddress);
-  const ordUtxos = utxos
-    .map((v) => new OrdUnspendOutput(v))
-    .sort((a, b) => a.getLastUnitSatoshis() - b.getLastUnitSatoshis());
 
   let needAmount = toAmount;
+
+  const nonOrdUtxos: OrdUnspendOutput[] = [];
+  const ordUtxos: OrdUnspendOutput[] = [];
+  utxos.forEach((v) => {
+    const ordUtxo = new OrdUnspendOutput(v);
+    if (v.ords.length > 0) {
+      ordUtxos.push(ordUtxo);
+    } else {
+      nonOrdUtxos.push(ordUtxo);
+    }
+  });
+
+  ordUtxos.sort((a, b) => a.getLastUnitSatoshis() - b.getLastUnitSatoshis());
+
   for (let i = 0; i < ordUtxos.length; i++) {
     const ordUtxo = ordUtxos[i];
-    let used = false;
-    for (let j = 0; j < ordUtxo.ordUnits.length; j++) {
-      const unit = ordUtxo.ordUnits[j];
-      if (unit.hasOrd()) {
+    if (ordUtxo.hasOrd()) {
+      let used = false;
+      let tmpOutputCounts = 0;
+      for (let j = 0; j < ordUtxo.ordUnits.length; j++) {
+        const unit = ordUtxo.ordUnits[j];
+        if (unit.hasOrd()) {
+          tx.addChangeOutput(unit.satoshis);
+          tmpOutputCounts++;
+          continue;
+        }
+        if (needAmount > unit.satoshis + UTXO_DUST) {
+          tx.addOutput(toAddress, unit.satoshis);
+          needAmount -= unit.satoshis;
+          used = true;
+          continue;
+        }
+
+        if (
+          needAmount >= UTXO_DUST &&
+          unit.satoshis >= needAmount + UTXO_DUST
+        ) {
+          tx.addOutput(toAddress, needAmount);
+          tx.addChangeOutput(unit.satoshis - needAmount);
+          needAmount = 0;
+          used = true;
+          continue;
+        }
+
+        // otherwise
         tx.addChangeOutput(unit.satoshis);
-        continue;
+        tmpOutputCounts++;
       }
-      if (needAmount > unit.satoshis + UTXO_DUST) {
-        tx.addOutput(toAddress, unit.satoshis);
-        needAmount -= unit.satoshis;
-        used = true;
-        continue;
+      if (used) {
+        tx.addInput(ordUtxo.utxo);
+      } else {
+        if (tmpOutputCounts > 0) {
+          tx.removeRecentOutputs(tmpOutputCounts);
+        }
       }
-
-      if (needAmount >= UTXO_DUST && unit.satoshis >= needAmount + UTXO_DUST) {
-        tx.addOutput(toAddress, needAmount);
-        tx.addChangeOutput(unit.satoshis - needAmount);
-        needAmount = 0;
-        used = true;
-        continue;
-      }
-
-      // otherwise
-      tx.addChangeOutput(unit.satoshis);
     }
-    if (used) {
-      tx.addInput(ordUtxo.utxo);
-    }
-
     if (needAmount == 0) break;
   }
 
-  return tx.createSignedPsbt();
+  nonOrdUtxos.forEach((v) => {
+    tx.addInput(v.utxo);
+  });
+
+  let lastOutput = tx.outputs[tx.outputs.length - 1];
+  if (lastOutput) {
+    if (lastOutput.address === tx.changedAddress) {
+      tx.addOutput(toAddress, needAmount);
+    } else {
+      lastOutput.value += needAmount;
+    }
+  } else {
+    tx.addOutput(toAddress, needAmount);
+  }
+  const unspent = tx.getUnspent();
+  if (unspent < 0) {
+    throw new Error("Balance not enough");
+  }
+  if (unspent >= UTXO_DUST) {
+    tx.addChangeOutput(unspent);
+  }
+
+  {
+    const isEnough = await tx.isEnoughFee();
+    if (!isEnough) {
+      await tx.adjustFee();
+    }
+  }
+
+  const psbt = await tx.createSignedPsbt();
+  // tx.dumpTx(psbt);
+  const isEnough = await tx.isEnoughFee();
+  if (!isEnough) {
+    throw new Error("Balance not enough");
+  }
+
+  return psbt;
 }
 
-export function createSendOrd({
+export async function createSendOrd({
   utxos,
   toAddress,
   toOrdId,
@@ -81,6 +139,7 @@ export function createSendOrd({
     .map((v) => new OrdUnspendOutput(v))
     .sort((a, b) => a.getLastUnitSatoshis() - b.getLastUnitSatoshis());
 
+  // find NFT
   let found = false;
   for (let i = 0; i < ordUtxos.length; i++) {
     const ordUtxo = ordUtxos[i];
@@ -100,15 +159,60 @@ export function createSendOrd({
     if (found) break;
   }
 
-  // add safeUtxo to change
-  ordUtxos.forEach((ordUtxo) => {
-    if (!ordUtxo.hasOrd()) {
-      tx.addInput(ordUtxo.utxo);
-      tx.addChangeOutput(ordUtxo.satoshis);
+  if (!found) {
+    throw new Error("inscription not found.");
+  }
+
+  if (tx.getChangeAmount() > 0) {
+    let supplyAmount = 0;
+    const lastOutput = tx.getOutput(0);
+    if (lastOutput) {
+      if (lastOutput.value < UTXO_DUST) {
+        supplyAmount = UTXO_DUST - lastOutput.value;
+        if (lastOutput.value > supplyAmount) {
+          lastOutput.value = UTXO_DUST;
+          tx.getChangeOutput().value -= supplyAmount;
+        }
+      }
     }
-  });
 
-  const changeAmount = tx.getChangeAmount();
+    const isEnough = await tx.isEnoughFee();
+    if (!isEnough) {
+      await tx.adjustFee();
+    }
+  }
 
-  return tx.createSignedPsbt();
+  // add safeUtxo to change
+  for (let i = 0; i < ordUtxos.length; i++) {
+    const ordUtxo = ordUtxos[i];
+    if (!ordUtxo.hasOrd()) {
+      const isEnough = await tx.isEnoughFee();
+
+      let supplyAmount = 0;
+      const lastOutput = tx.getOutput(0);
+      if (lastOutput) {
+        if (lastOutput.value < UTXO_DUST) {
+          supplyAmount = UTXO_DUST - lastOutput.value;
+          lastOutput.value = UTXO_DUST;
+        }
+      }
+      if (!isEnough || supplyAmount > 0) {
+        tx.addInput(ordUtxo.utxo);
+        if (tx.getChangeAmount() == 0) {
+          tx.addChangeOutput(ordUtxo.utxo.satoshis - supplyAmount);
+        } else {
+          tx.getChangeOutput().value += ordUtxo.utxo.satoshis - supplyAmount;
+        }
+        await tx.adjustFee();
+      }
+    }
+  }
+  const psbt = await tx.createSignedPsbt();
+  // tx.dumpTx(psbt);
+  const isEnough = await tx.isEnoughFee();
+  if (!isEnough) {
+    throw new Error("Balance not enough");
+  }
+
+  return psbt;
 }

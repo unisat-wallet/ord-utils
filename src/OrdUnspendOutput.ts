@@ -4,7 +4,6 @@ import { OrdUnit } from "./OrdUnit";
 export const UTXO_DUST = 546;
 
 export class OrdUnspendOutput {
-  satoshis: number;
   ordUnits: OrdUnit[];
   utxo: UnspentOutput;
   constructor(utxo: UnspentOutput) {
@@ -26,12 +25,25 @@ export class OrdUnspendOutput {
       }
 
       if (splitAmount < 0) {
-        // sequnce?
-        ordUnits[ordUnits.length - 1].ords.push({
-          id,
-          outputOffset: offset,
-          unitOffset: ordUnits[ordUnits.length - 1].satoshis,
-        });
+        if (ordUnits.length == 0) {
+          ordUnits.push(
+            new OrdUnit(leftAmount, [
+              {
+                id: id,
+                outputOffset: offset,
+                unitOffset: 0,
+              },
+            ])
+          );
+          leftAmount = 0;
+        } else {
+          // sequnce?
+          ordUnits[ordUnits.length - 1].ords.push({
+            id,
+            outputOffset: offset,
+            unitOffset: ordUnits[ordUnits.length - 1].satoshis,
+          });
+        }
         continue;
       }
 
@@ -60,7 +72,7 @@ export class OrdUnspendOutput {
 
     if (leftAmount > UTXO_DUST) {
       ordUnits.push(new OrdUnit(leftAmount, []));
-    } else {
+    } else if (leftAmount > 0) {
       ordUnits[ordUnits.length - 1].satoshis += leftAmount;
     }
 

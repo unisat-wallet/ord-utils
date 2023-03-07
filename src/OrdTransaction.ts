@@ -5,10 +5,13 @@ import * as ecc from "tiny-secp256k1";
 bitcoin.initEccLib(ecc);
 const ECPair = ECPairFactory(ecc);
 interface TxInput {
-  hash: string;
-  index: number;
-  witnessUtxo: { value: number; script: Buffer };
-  tapInternalKey?: Buffer;
+  data: {
+    hash: string;
+    index: number;
+    witnessUtxo: { value: number; script: Buffer };
+    tapInternalKey?: Buffer;
+  };
+  utxo: UnspentOutput;
 }
 
 interface TxOutput {
@@ -27,7 +30,7 @@ export interface UnspentOutput {
   outputIndex: number;
   satoshis: number;
   scriptPk: string;
-  isTaproot: boolean;
+  addressType: AddressType;
   address: string;
   ords: {
     id: string;
@@ -43,9 +46,9 @@ export enum AddressType {
 export const toXOnly = (pubKey: Buffer) =>
   pubKey.length === 32 ? pubKey : pubKey.slice(1, 33);
 
-export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer) {
-  if (utxo.isTaproot) {
-    const input = {
+export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer): TxInput {
+  if (utxo.addressType === AddressType.P2TR) {
+    const data = {
       hash: utxo.txId,
       index: utxo.outputIndex,
       witnessUtxo: {
@@ -54,9 +57,12 @@ export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer) {
       },
       tapInternalKey: toXOnly(publicKey),
     };
-    return input;
-  } else {
-    const input = {
+    return {
+      data,
+      utxo,
+    };
+  } else if (utxo.addressType === AddressType.P2WPKH) {
+    const data = {
       hash: utxo.txId,
       index: utxo.outputIndex,
       witnessUtxo: {
@@ -64,16 +70,32 @@ export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer) {
         script: Buffer.from(utxo.scriptPk, "hex"),
       },
     };
-    return input;
+    return {
+      data,
+      utxo,
+    };
+  } else if (utxo.addressType === AddressType.P2PKH) {
+    const data = {
+      hash: utxo.txId,
+      index: utxo.outputIndex,
+      witnessUtxo: {
+        value: utxo.satoshis,
+        script: Buffer.from(utxo.scriptPk, "hex"),
+      },
+    };
+    return {
+      data,
+      utxo,
+    };
   }
 }
 
 export class OrdTransaction {
   private inputs: TxInput[] = [];
-  private outputs: TxOutput[] = [];
+  public outputs: TxOutput[] = [];
   private changeOutputIndex = -1;
   private wallet: any;
-  private changedAddress: string;
+  public changedAddress: string;
   private network: bitcoin.Network = bitcoin.networks.bitcoin;
   constructor(wallet: any, network: any) {
     this.wallet = wallet;
@@ -89,7 +111,10 @@ export class OrdTransaction {
   }
 
   getTotalInput() {
-    return this.inputs.reduce((pre, cur) => pre + cur.witnessUtxo.value, 0);
+    return this.inputs.reduce(
+      (pre, cur) => pre + cur.data.witnessUtxo.value,
+      0
+    );
   }
 
   getTotalOutput() {
@@ -100,11 +125,53 @@ export class OrdTransaction {
     return this.getTotalInput() - this.getTotalOutput();
   }
 
+  async isEnoughFee() {
+    const psbt1 = await this.createSignedPsbt();
+    const feeRate = 5;
+    if (psbt1.getFeeRate() >= feeRate) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  async adjustFee() {
+    const psbt1 = await this.createSignedPsbt();
+    const feeRate = 5;
+    let txSize = psbt1.extractTransaction().toBuffer().length;
+    psbt1.data.inputs.forEach((v) => {
+      if (v.finalScriptWitness) {
+        txSize -= v.finalScriptWitness.length * 0.75;
+      }
+    });
+    const fee = Math.ceil(txSize * feeRate);
+
+    const changeOutput = this.getChangeOutput();
+    changeOutput.value -= fee;
+
+    const isEnough = this.isEnoughFee();
+    if (!isEnough) {
+      changeOutput.value += fee;
+    }
+
+    if (changeOutput.value < UTXO_DUST) {
+      const output = this.outputs[this.outputs.length - 2];
+      if (output && output.address === this.changedAddress) {
+        output.value += changeOutput.value;
+      }
+      this.removeChangeOutput();
+    }
+  }
+
   addOutput(address: string, value: number) {
     this.outputs.push({
       address,
       value,
     });
+  }
+
+  getOutput(index: number) {
+    return this.outputs[index];
   }
 
   addChangeOutput(value: number) {
@@ -129,11 +196,16 @@ export class OrdTransaction {
     this.changeOutputIndex = -1;
   }
 
+  removeRecentOutputs(count: number) {
+    this.outputs.splice(-count);
+  }
+
   async createSignedPsbt() {
     const psbt = new bitcoin.Psbt({ network: this.network });
-
+    //@ts-ignore
+    psbt.__CACHE.__UNSAFE_SIGN_NONSEGWIT = true;
     this.inputs.forEach((v, index) => {
-      psbt.addInput(v);
+      psbt.addInput(v.data);
       psbt.setInputSequence(index, 0xfffffffd); // support RBF
     });
 
@@ -231,9 +303,9 @@ Inputs
 ${this.inputs
   .map((input, index) => {
     const str = `
-=>${index} ${input.witnessUtxo.value} Sats
-        lock-size: ${input.witnessUtxo.script.length}
-        via ${input.hash} [${input.index}]
+=>${index} ${input.data.witnessUtxo.value} Sats
+        lock-size: ${input.data.witnessUtxo.script.length}
+        via ${input.data.hash} [${input.data.index}]
 `;
     return str;
   })
