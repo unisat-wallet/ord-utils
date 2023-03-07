@@ -135,9 +135,19 @@ export async function createSendOrd({
 }) {
   const tx = new OrdTransaction(wallet, network);
   tx.setChangeAddress(changeAddress);
-  const ordUtxos = utxos
-    .map((v) => new OrdUnspendOutput(v))
-    .sort((a, b) => a.getLastUnitSatoshis() - b.getLastUnitSatoshis());
+
+  const nonOrdUtxos: OrdUnspendOutput[] = [];
+  const ordUtxos: OrdUnspendOutput[] = [];
+  utxos.forEach((v) => {
+    const ordUtxo = new OrdUnspendOutput(v);
+    if (v.ords.length > 0) {
+      ordUtxos.push(ordUtxo);
+    } else {
+      nonOrdUtxos.push(ordUtxo);
+    }
+  });
+
+  ordUtxos.sort((a, b) => a.getLastUnitSatoshis() - b.getLastUnitSatoshis());
 
   // find NFT
   let found = false;
@@ -163,50 +173,25 @@ export async function createSendOrd({
     throw new Error("inscription not found.");
   }
 
-  if (tx.getChangeAmount() > 0) {
-    let supplyAmount = 0;
-    const lastOutput = tx.getOutput(0);
-    if (lastOutput) {
-      if (lastOutput.value < UTXO_DUST) {
-        supplyAmount = UTXO_DUST - lastOutput.value;
-        if (lastOutput.value > supplyAmount) {
-          lastOutput.value = UTXO_DUST;
-          tx.getChangeOutput().value -= supplyAmount;
-        }
-      }
-    }
+  nonOrdUtxos.forEach((v) => {
+    tx.addInput(v.utxo);
+  });
 
+  const unspent = tx.getUnspent();
+  if (unspent < 0) {
+    throw new Error("Balance not enough");
+  }
+  if (unspent >= UTXO_DUST) {
+    tx.addChangeOutput(unspent);
+  }
+
+  {
     const isEnough = await tx.isEnoughFee();
     if (!isEnough) {
       await tx.adjustFee();
     }
   }
 
-  // add safeUtxo to change
-  for (let i = 0; i < ordUtxos.length; i++) {
-    const ordUtxo = ordUtxos[i];
-    if (!ordUtxo.hasOrd()) {
-      const isEnough = await tx.isEnoughFee();
-
-      let supplyAmount = 0;
-      const lastOutput = tx.getOutput(0);
-      if (lastOutput) {
-        if (lastOutput.value < UTXO_DUST) {
-          supplyAmount = UTXO_DUST - lastOutput.value;
-          lastOutput.value = UTXO_DUST;
-        }
-      }
-      if (!isEnough || supplyAmount > 0) {
-        tx.addInput(ordUtxo.utxo);
-        if (tx.getChangeAmount() == 0) {
-          tx.addChangeOutput(ordUtxo.utxo.satoshis - supplyAmount);
-        } else {
-          tx.getChangeOutput().value += ordUtxo.utxo.satoshis - supplyAmount;
-        }
-        await tx.adjustFee();
-      }
-    }
-  }
   const psbt = await tx.createSignedPsbt();
   // tx.dumpTx(psbt);
   const isEnough = await tx.isEnoughFee();
