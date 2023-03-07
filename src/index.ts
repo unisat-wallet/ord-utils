@@ -8,6 +8,9 @@ export async function createSendBTC({
   wallet,
   network,
   changeAddress,
+  force,
+  feeRate,
+  pubkey,
 }: {
   utxos: UnspentOutput[];
   toAddress: string;
@@ -15,8 +18,11 @@ export async function createSendBTC({
   wallet: any;
   network: any;
   changeAddress: string;
+  force?: boolean;
+  feeRate?: number;
+  pubkey: string;
 }) {
-  const tx = new OrdTransaction(wallet, network);
+  const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
   tx.setChangeAddress(changeAddress);
 
   let needAmount = toAmount;
@@ -101,19 +107,13 @@ export async function createSendBTC({
     tx.addChangeOutput(unspent);
   }
 
-  {
-    const isEnough = await tx.isEnoughFee();
-    if (!isEnough) {
-      await tx.adjustFee();
-    }
+  const isEnough = await tx.isEnoughFee();
+  if (!isEnough) {
+    await tx.adjustFee(force);
   }
 
   const psbt = await tx.createSignedPsbt();
   // tx.dumpTx(psbt);
-  const isEnough = await tx.isEnoughFee();
-  if (!isEnough) {
-    throw new Error("Balance not enough");
-  }
 
   return psbt;
 }
@@ -125,6 +125,8 @@ export async function createSendOrd({
   wallet,
   network,
   changeAddress,
+  pubkey,
+  feeRate,
 }: {
   utxos: UnspentOutput[];
   toAddress: string;
@@ -132,8 +134,10 @@ export async function createSendOrd({
   wallet: any;
   network: any;
   changeAddress: string;
+  pubkey: string;
+  feeRate?: number;
 }) {
-  const tx = new OrdTransaction(wallet, network);
+  const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
   tx.setChangeAddress(changeAddress);
 
   const nonOrdUtxos: OrdUnspendOutput[] = [];
@@ -151,26 +155,35 @@ export async function createSendOrd({
 
   // find NFT
   let found = false;
+
   for (let i = 0; i < ordUtxos.length; i++) {
     const ordUtxo = ordUtxos[i];
+    let changeCount = 0;
     for (let j = 0; j < ordUtxo.ordUnits.length; j++) {
       const unit = ordUtxo.ordUnits[j];
       if (unit.ords.find((v) => v.id == toOrdId)) {
         tx.addOutput(toAddress, unit.satoshis);
         found = true;
-        continue;
       } else {
         tx.addChangeOutput(unit.satoshis);
+        changeCount++;
       }
     }
     if (found) {
       tx.addInput(ordUtxo.utxo);
+    } else {
+      tx.removeRecentOutputs(changeCount);
     }
     if (found) break;
   }
 
   if (!found) {
     throw new Error("inscription not found.");
+  }
+
+  // format NFT
+  if (tx.outputs.length == 1 && tx.outputs[0].value < UTXO_DUST) {
+    tx.outputs[0].value = UTXO_DUST;
   }
 
   nonOrdUtxos.forEach((v) => {
@@ -185,19 +198,13 @@ export async function createSendOrd({
     tx.addChangeOutput(unspent);
   }
 
-  {
-    const isEnough = await tx.isEnoughFee();
-    if (!isEnough) {
-      await tx.adjustFee();
-    }
+  const isEnough = await tx.isEnoughFee();
+  if (!isEnough) {
+    await tx.adjustFee();
   }
 
   const psbt = await tx.createSignedPsbt();
   // tx.dumpTx(psbt);
-  const isEnough = await tx.isEnoughFee();
-  if (!isEnough) {
-    throw new Error("Balance not enough");
-  }
 
   return psbt;
 }

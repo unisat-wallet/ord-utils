@@ -97,9 +97,13 @@ export class OrdTransaction {
   private wallet: any;
   public changedAddress: string;
   private network: bitcoin.Network = bitcoin.networks.bitcoin;
-  constructor(wallet: any, network: any) {
+  private feeRate: number;
+  private pubkey: string;
+  constructor(wallet: any, network: any, pubkey: string, feeRate?: number) {
     this.wallet = wallet;
     this.network = network;
+    this.pubkey = pubkey;
+    this.feeRate = feeRate || 5;
   }
 
   setChangeAddress(address: string) {
@@ -107,7 +111,7 @@ export class OrdTransaction {
   }
 
   addInput(utxo: UnspentOutput) {
-    this.inputs.push(utxoToInput(utxo, Buffer.from(utxo.address, "hex")));
+    this.inputs.push(utxoToInput(utxo, Buffer.from(this.pubkey, "hex")));
   }
 
   getTotalInput() {
@@ -127,26 +131,31 @@ export class OrdTransaction {
 
   async isEnoughFee() {
     const psbt1 = await this.createSignedPsbt();
-    const feeRate = 5;
-    if (psbt1.getFeeRate() >= feeRate) {
+    if (psbt1.getFeeRate() >= this.feeRate) {
       return true;
     } else {
       return false;
     }
   }
 
-  async adjustFee() {
+  async adjustFee(force?: boolean) {
+    let changeOutput = this.getChangeOutput();
+    if (!changeOutput) {
+      if (force) {
+        changeOutput = this.outputs[this.outputs.length - 1];
+      } else {
+        return;
+      }
+    }
+
     const psbt1 = await this.createSignedPsbt();
-    const feeRate = 5;
     let txSize = psbt1.extractTransaction().toBuffer().length;
     psbt1.data.inputs.forEach((v) => {
       if (v.finalScriptWitness) {
         txSize -= v.finalScriptWitness.length * 0.75;
       }
     });
-    const fee = Math.ceil(txSize * feeRate);
-
-    const changeOutput = this.getChangeOutput();
+    const fee = Math.ceil(txSize * this.feeRate);
     changeOutput.value -= fee;
 
     const isEnough = this.isEnoughFee();
@@ -232,9 +241,8 @@ export class OrdTransaction {
     this.removeChangeOutput();
 
     // todo: support changing the feeRate
-    const feeRate = 5;
     const txSize = psbt1.extractTransaction().toBuffer().length;
-    const fee = txSize * feeRate;
+    const fee = txSize * this.feeRate;
 
     if (unspent > fee) {
       const left = unspent - fee;
@@ -256,33 +264,6 @@ export class OrdTransaction {
       rawtx,
       toSatoshis: toAmount,
       estimateFee: fee,
-    };
-  }
-
-  async generateForInscriptionTx() {
-    const psbt1 = await this.createSignedPsbt();
-
-    // todo: support changing the feeRate
-    const feeRate = 5;
-    const txSize = psbt1.extractTransaction().toBuffer().length;
-    const fee = txSize * feeRate;
-
-    const changeAmount = this.outputs[this.changeOutputIndex].value;
-    if (changeAmount > fee) {
-      this.outputs[this.changeOutputIndex].value -= fee;
-    } else {
-      this.removeChangeOutput();
-    }
-
-    const psbt2 = await this.createSignedPsbt();
-    const tx = psbt2.extractTransaction();
-
-    const rawtx = tx.toHex();
-    const toAmount = this.outputs[0].value;
-    return {
-      fee: psbt2.getFee(),
-      rawtx,
-      toSatoshis: toAmount,
     };
   }
 
