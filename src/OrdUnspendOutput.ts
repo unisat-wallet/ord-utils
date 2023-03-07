@@ -73,7 +73,11 @@ export class OrdUnspendOutput {
     if (leftAmount > UTXO_DUST) {
       ordUnits.push(new OrdUnit(leftAmount, []));
     } else if (leftAmount > 0) {
-      ordUnits[ordUnits.length - 1].satoshis += leftAmount;
+      if (ordUnits.length > 0) {
+        ordUnits[ordUnits.length - 1].satoshis += leftAmount;
+      } else {
+        ordUnits.push(new OrdUnit(leftAmount, []));
+      }
     }
 
     this.ordUnits = ordUnits;
