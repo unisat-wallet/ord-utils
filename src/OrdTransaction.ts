@@ -202,9 +202,11 @@ export class OrdTransaction {
 
   async createSignedPsbt() {
     const psbt = new bitcoin.Psbt({ network: this.network });
-    //@ts-ignore
-    psbt.__CACHE.__UNSAFE_SIGN_NONSEGWIT = true;
     this.inputs.forEach((v, index) => {
+      if (v.utxo.addressType === AddressType.P2PKH) {
+        //@ts-ignore
+        psbt.__CACHE.__UNSAFE_SIGN_NONSEGWIT = true;
+      }
       psbt.addInput(v.data);
       psbt.setInputSequence(index, 0xfffffffd); // support RBF
     });
