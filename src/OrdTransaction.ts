@@ -226,9 +226,6 @@ export class OrdTransaction {
 
     await this.wallet.signPsbt(psbt);
 
-    psbt.validateSignaturesOfAllInputs(validator);
-    psbt.finalizeAllInputs();
-
     return psbt;
   }
 
