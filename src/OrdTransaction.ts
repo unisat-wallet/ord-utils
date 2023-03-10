@@ -41,6 +41,7 @@ export enum AddressType {
   P2PKH,
   P2WPKH,
   P2TR,
+  P2SH_P2WPKH,
 }
 
 export const toXOnly = (pubKey: Buffer) =>
@@ -75,6 +76,19 @@ export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer): TxInput {
       utxo,
     };
   } else if (utxo.addressType === AddressType.P2PKH) {
+    const data = {
+      hash: utxo.txId,
+      index: utxo.outputIndex,
+      witnessUtxo: {
+        value: utxo.satoshis,
+        script: Buffer.from(utxo.scriptPk, "hex"),
+      },
+    };
+    return {
+      data,
+      utxo,
+    };
+  } else if (utxo.addressType === AddressType.P2SH_P2WPKH) {
     const data = {
       hash: utxo.txId,
       index: utxo.outputIndex,
