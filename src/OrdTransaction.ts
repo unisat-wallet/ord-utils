@@ -42,13 +42,18 @@ export enum AddressType {
   P2WPKH,
   P2TR,
   P2SH_P2WPKH,
+  M44_P2WPKH,
+  M44_P2TR,
 }
 
 export const toXOnly = (pubKey: Buffer) =>
   pubKey.length === 32 ? pubKey : pubKey.slice(1, 33);
 
 export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer): TxInput {
-  if (utxo.addressType === AddressType.P2TR) {
+  if (
+    utxo.addressType === AddressType.P2TR ||
+    utxo.addressType === AddressType.M44_P2TR
+  ) {
     const data = {
       hash: utxo.txId,
       index: utxo.outputIndex,
@@ -62,7 +67,10 @@ export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer): TxInput {
       data,
       utxo,
     };
-  } else if (utxo.addressType === AddressType.P2WPKH) {
+  } else if (
+    utxo.addressType === AddressType.P2WPKH ||
+    utxo.addressType === AddressType.M44_P2WPKH
+  ) {
     const data = {
       hash: utxo.txId,
       index: utxo.outputIndex,
