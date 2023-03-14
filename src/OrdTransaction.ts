@@ -97,6 +97,7 @@ export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer): TxInput {
       utxo,
     };
   } else if (utxo.addressType === AddressType.P2SH_P2WPKH) {
+    const redeemData = bitcoin.payments.p2wpkh({ pubkey: publicKey });
     const data = {
       hash: utxo.txId,
       index: utxo.outputIndex,
@@ -104,6 +105,7 @@ export function utxoToInput(utxo: UnspentOutput, publicKey: Buffer): TxInput {
         value: utxo.satoshis,
         script: Buffer.from(utxo.scriptPk, "hex"),
       },
+      redeemScript: redeemData.output,
     };
     return {
       data,
