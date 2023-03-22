@@ -320,7 +320,7 @@ Outputs
 ${this.outputs
   .map((output, index) => {
     const str = `
-=>${index} ${output.value} Sats`;
+=>${index} ${output.address} ${output.value} Sats`;
     return str;
   })
   .join("")}

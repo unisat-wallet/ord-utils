@@ -1,6 +1,6 @@
 {
   "name": "@unisat/ord-utils",
-  "version": "0.1.18",
+  "version": "0.2.0",
   "description": "Ordinals Utils",
   "keywords": [
     "bitcoin",
