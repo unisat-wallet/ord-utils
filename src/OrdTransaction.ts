@@ -162,38 +162,16 @@ export class OrdTransaction {
     }
   }
 
-  async adjustFee(force?: boolean) {
-    let changeOutput = this.getChangeOutput();
-    if (!changeOutput) {
-      if (force) {
-        changeOutput = this.outputs[this.outputs.length - 1];
-      } else {
-        return;
-      }
-    }
-
-    const psbt1 = await this.createSignedPsbt();
-    let txSize = psbt1.extractTransaction().toBuffer().length;
-    psbt1.data.inputs.forEach((v) => {
+  async calNetworkFee() {
+    const psbt = await this.createSignedPsbt();
+    let txSize = psbt.extractTransaction().toBuffer().length;
+    psbt.data.inputs.forEach((v) => {
       if (v.finalScriptWitness) {
         txSize -= v.finalScriptWitness.length * 0.75;
       }
     });
     const fee = Math.ceil(txSize * this.feeRate);
-    changeOutput.value -= fee;
-
-    const isEnough = this.isEnoughFee();
-    if (!isEnough) {
-      changeOutput.value += fee;
-    }
-
-    if (changeOutput.value < UTXO_DUST) {
-      const output = this.outputs[this.outputs.length - 2];
-      if (output && output.address === this.changedAddress) {
-        output.value += changeOutput.value;
-      }
-      this.removeChangeOutput();
-    }
+    return fee;
   }
 
   addOutput(address: string, value: number) {

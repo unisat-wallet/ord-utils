@@ -8,7 +8,7 @@ export async function createSendBTC({
   wallet,
   network,
   changeAddress,
-  force,
+  receiverToPayFee,
   feeRate,
   pubkey,
 }: {
@@ -18,7 +18,7 @@ export async function createSendBTC({
   wallet: any;
   network: any;
   changeAddress: string;
-  force?: boolean;
+  receiverToPayFee?: boolean;
   feeRate?: number;
   pubkey: string;
 }) {
@@ -41,17 +41,41 @@ export async function createSendBTC({
 
   tx.addOutput(toAddress, toAmount);
 
-  const unspent = tx.getUnspent();
-  if (unspent < 0) {
+  if (nonOrdUtxos.length === 0) {
     throw new Error("Balance not enough");
   }
-  if (unspent >= UTXO_DUST) {
-    tx.addChangeOutput(unspent);
-  }
 
-  const isEnough = await tx.isEnoughFee();
-  if (!isEnough) {
-    await tx.adjustFee(force);
+  if (receiverToPayFee) {
+    const unspent = tx.getUnspent();
+    if (unspent >= UTXO_DUST) {
+      tx.addChangeOutput(unspent);
+    }
+
+    const networkFee = await tx.calNetworkFee();
+    const output = tx.outputs.find((v) => v.address === toAddress);
+    if (output.value < networkFee) {
+      throw new Error("Balance not enough");
+    }
+    output.value -= networkFee;
+  } else {
+    const unspent = tx.getUnspent();
+
+    // add dummy output
+    tx.addChangeOutput(1);
+
+    const networkFee = await tx.calNetworkFee();
+    if (unspent < networkFee) {
+      throw new Error("Balance not enough");
+    }
+
+    const leftAmount = unspent - networkFee;
+    if (leftAmount >= UTXO_DUST) {
+      // change dummy output to true output
+      tx.getChangeOutput().value = leftAmount;
+    } else {
+      // remove dummy output
+      tx.removeChangeOutput();
+    }
   }
 
   const psbt = await tx.createSignedPsbt();
@@ -123,16 +147,22 @@ export async function createSendOrd({
   });
 
   const unspent = tx.getUnspent();
-  if (unspent < 0) {
+
+  // add dummy output
+  tx.addChangeOutput(1);
+
+  const networkFee = await tx.calNetworkFee();
+  if (unspent < networkFee) {
     throw new Error("Balance not enough");
   }
-  if (unspent >= UTXO_DUST) {
-    tx.addChangeOutput(unspent);
-  }
 
-  const isEnough = await tx.isEnoughFee();
-  if (!isEnough) {
-    await tx.adjustFee();
+  const leftAmount = unspent - networkFee;
+  if (leftAmount >= UTXO_DUST) {
+    // change dummy output to true output
+    tx.getChangeOutput().value = leftAmount;
+  } else {
+    // remove dummy output
+    tx.removeChangeOutput();
   }
 
   const psbt = await tx.createSignedPsbt();
