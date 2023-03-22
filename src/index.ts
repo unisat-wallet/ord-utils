@@ -64,6 +64,9 @@ export async function createSendBTC({
     output.value -= networkFee;
   } else {
     const unspent = tx.getUnspent();
+    if (unspent === 0) {
+      throw new Error("Balance not enough to pay network fee.");
+    }
 
     // add dummy output
     tx.addChangeOutput(1);
@@ -156,6 +159,9 @@ export async function createSendOrd({
   });
 
   const unspent = tx.getUnspent();
+  if (unspent == 0) {
+    throw new Error("Balance not enough to pay network fee.");
+  }
 
   // add dummy output
   tx.addChangeOutput(1);
