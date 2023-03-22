@@ -32,6 +32,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "bignumber.js": "^9.1.1",
     "bitcoinjs-lib": "^6.1.0",
     "bs58check": "^2.1.2",
     "ecpair": "^2.1.0",

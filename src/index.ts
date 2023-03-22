@@ -1,5 +1,6 @@
 import { OrdTransaction, UnspentOutput } from "./OrdTransaction";
 import { OrdUnspendOutput, UTXO_DUST } from "./OrdUnspendOutput";
+import { satoshisToAmount } from "./utils";
 
 export async function createSendBTC({
   utxos,
@@ -54,7 +55,11 @@ export async function createSendBTC({
     const networkFee = await tx.calNetworkFee();
     const output = tx.outputs.find((v) => v.address === toAddress);
     if (output.value < networkFee) {
-      throw new Error("Balance not enough");
+      throw new Error(
+        `Balance not enough. Need ${satoshisToAmount(
+          networkFee
+        )} BTC as network fee`
+      );
     }
     output.value -= networkFee;
   } else {
@@ -65,7 +70,11 @@ export async function createSendBTC({
 
     const networkFee = await tx.calNetworkFee();
     if (unspent < networkFee) {
-      throw new Error("Balance not enough");
+      throw new Error(
+        `Balance not enough. Need ${satoshisToAmount(
+          networkFee
+        )} BTC as network fee, but only ${satoshisToAmount(unspent)} BTC.`
+      );
     }
 
     const leftAmount = unspent - networkFee;
@@ -153,7 +162,11 @@ export async function createSendOrd({
 
   const networkFee = await tx.calNetworkFee();
   if (unspent < networkFee) {
-    throw new Error("Balance not enough");
+    throw new Error(
+      `Balance not enough. Need ${satoshisToAmount(
+        networkFee
+      )} BTC as network fee, but only ${satoshisToAmount(unspent)} BTC.`
+    );
   }
 
   const leftAmount = unspent - networkFee;
