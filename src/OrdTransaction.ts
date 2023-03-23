@@ -164,7 +164,7 @@ export class OrdTransaction {
 
   async calNetworkFee() {
     const psbt = await this.createSignedPsbt();
-    let txSize = psbt.extractTransaction().toBuffer().length;
+    let txSize = psbt.extractTransaction(true).toBuffer().length;
     psbt.data.inputs.forEach((v) => {
       if (v.finalScriptWitness) {
         txSize -= v.finalScriptWitness.length * 0.75;
