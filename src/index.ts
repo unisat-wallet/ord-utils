@@ -12,6 +12,7 @@ export async function createSendBTC({
   receiverToPayFee,
   feeRate,
   pubkey,
+  dump,
 }: {
   utxos: UnspentOutput[];
   toAddress: string;
@@ -22,6 +23,7 @@ export async function createSendBTC({
   receiverToPayFee?: boolean;
   feeRate?: number;
   pubkey: string;
+  dump?: boolean;
 }) {
   const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
   tx.setChangeAddress(changeAddress);
@@ -36,11 +38,27 @@ export async function createSendBTC({
     }
   });
 
-  nonOrdUtxos.forEach((v) => {
-    tx.addInput(v);
-  });
-
   tx.addOutput(toAddress, toAmount);
+
+  const outputAmount = tx.getTotalOutput();
+
+  let tmpSum = tx.getTotalInput();
+  for (let i = 0; i < nonOrdUtxos.length; i++) {
+    const nonOrdUtxo = nonOrdUtxos[i];
+    if (tmpSum < outputAmount) {
+      tx.addInput(nonOrdUtxo);
+      tmpSum += nonOrdUtxo.satoshis;
+      continue;
+    }
+
+    const fee = await tx.calNetworkFee();
+    if (tmpSum < outputAmount + fee) {
+      tx.addInput(nonOrdUtxo);
+      tmpSum += nonOrdUtxo.satoshis;
+    } else {
+      break;
+    }
+  }
 
   if (nonOrdUtxos.length === 0) {
     throw new Error("Balance not enough");
@@ -91,7 +109,9 @@ export async function createSendBTC({
   }
 
   const psbt = await tx.createSignedPsbt();
-  // tx.dumpTx(psbt);
+  if (dump) {
+    tx.dumpTx(psbt);
+  }
 
   return psbt;
 }
@@ -106,6 +126,7 @@ export async function createSendOrd({
   pubkey,
   feeRate,
   outputValue,
+  dump,
 }: {
   utxos: UnspentOutput[];
   toAddress: string;
@@ -116,6 +137,7 @@ export async function createSendOrd({
   pubkey: string;
   feeRate?: number;
   outputValue: number;
+  dump?: boolean;
 }) {
   const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
   tx.setChangeAddress(changeAddress);
@@ -151,12 +173,27 @@ export async function createSendOrd({
   }
 
   // format NFT
-
   tx.outputs[0].value = outputValue;
 
-  nonOrdUtxos.forEach((v) => {
-    tx.addInput(v);
-  });
+  // select non ord utxo
+  const outputAmount = tx.getTotalOutput();
+  let tmpSum = tx.getTotalInput();
+  for (let i = 0; i < nonOrdUtxos.length; i++) {
+    const nonOrdUtxo = nonOrdUtxos[i];
+    if (tmpSum < outputAmount) {
+      tx.addInput(nonOrdUtxo);
+      tmpSum += nonOrdUtxo.satoshis;
+      continue;
+    }
+
+    const fee = await tx.calNetworkFee();
+    if (tmpSum < outputAmount + fee) {
+      tx.addInput(nonOrdUtxo);
+      tmpSum += nonOrdUtxo.satoshis;
+    } else {
+      break;
+    }
+  }
 
   const unspent = tx.getUnspent();
   if (unspent == 0) {
@@ -185,7 +222,9 @@ export async function createSendOrd({
   }
 
   const psbt = await tx.createSignedPsbt();
-  // tx.dumpTx(psbt);
+  if (dump) {
+    tx.dumpTx(psbt);
+  }
 
   return psbt;
 }
@@ -199,6 +238,7 @@ export async function createSendMultiOrds({
   changeAddress,
   pubkey,
   feeRate,
+  dump,
 }: {
   utxos: UnspentOutput[];
   toAddress: string;
@@ -208,6 +248,7 @@ export async function createSendMultiOrds({
   changeAddress: string;
   pubkey: string;
   feeRate?: number;
+  dump?: boolean;
 }) {
   const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
   tx.setChangeAddress(changeAddress);
@@ -246,9 +287,25 @@ export async function createSendMultiOrds({
   // Do not format NFT
   // tx.outputs[0].value = outputValue;
 
-  nonOrdUtxos.forEach((v) => {
-    tx.addInput(v);
-  });
+  // select non ord utxo
+  const outputAmount = tx.getTotalOutput();
+  let tmpSum = tx.getTotalInput();
+  for (let i = 0; i < nonOrdUtxos.length; i++) {
+    const nonOrdUtxo = nonOrdUtxos[i];
+    if (tmpSum < outputAmount) {
+      tx.addInput(nonOrdUtxo);
+      tmpSum += nonOrdUtxo.satoshis;
+      continue;
+    }
+
+    const fee = await tx.calNetworkFee();
+    if (tmpSum < outputAmount + fee) {
+      tx.addInput(nonOrdUtxo);
+      tmpSum += nonOrdUtxo.satoshis;
+    } else {
+      break;
+    }
+  }
 
   const unspent = tx.getUnspent();
   if (unspent == 0) {
@@ -277,7 +334,9 @@ export async function createSendMultiOrds({
   }
 
   const psbt = await tx.createSignedPsbt();
-  // tx.dumpTx(psbt);
+  if (dump) {
+    tx.dumpTx(psbt);
+  }
 
   return psbt;
 }
