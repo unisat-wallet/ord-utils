@@ -3,8 +3,8 @@ import { isTaprootInput } from "bitcoinjs-lib/src/psbt/bip371";
 import * as ecc from "tiny-secp256k1";
 bitcoin.initEccLib(ecc);
 import ECPairFactory, { ECPairInterface } from "ecpair";
-import { AddressType } from "../src/OrdTransaction";
-import { validator } from "../src/OrdTransaction";
+import { AddressType } from "./OrdTransaction";
+import { validator } from "./OrdTransaction";
 const ECPair = ECPairFactory(ecc);
 
 export const toXOnly = (pubKey: Buffer) =>
