@@ -340,3 +340,100 @@ export async function createSendMultiOrds({
 
   return psbt;
 }
+
+export async function createSendMultiBTC({
+  utxos,
+  receivers,
+  wallet,
+  network,
+  changeAddress,
+  feeRate,
+  pubkey,
+  dump,
+}: {
+  utxos: UnspentOutput[];
+  receivers: {
+    address: string;
+    amount: number;
+  }[];
+  wallet: any;
+  network: any;
+  changeAddress: string;
+  feeRate?: number;
+  pubkey: string;
+  dump?: boolean;
+}) {
+  const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
+  tx.setChangeAddress(changeAddress);
+
+  const nonOrdUtxos: UnspentOutput[] = [];
+  const ordUtxos: UnspentOutput[] = [];
+  utxos.forEach((v) => {
+    if (v.ords.length > 0) {
+      ordUtxos.push(v);
+    } else {
+      nonOrdUtxos.push(v);
+    }
+  });
+
+  receivers.forEach((v) => {
+    tx.addOutput(v.address, v.amount);
+  });
+
+  const outputAmount = tx.getTotalOutput();
+
+  let tmpSum = tx.getTotalInput();
+  for (let i = 0; i < nonOrdUtxos.length; i++) {
+    const nonOrdUtxo = nonOrdUtxos[i];
+    if (tmpSum < outputAmount) {
+      tx.addInput(nonOrdUtxo);
+      tmpSum += nonOrdUtxo.satoshis;
+      continue;
+    }
+
+    const fee = await tx.calNetworkFee();
+    if (tmpSum < outputAmount + fee) {
+      tx.addInput(nonOrdUtxo);
+      tmpSum += nonOrdUtxo.satoshis;
+    } else {
+      break;
+    }
+  }
+
+  if (nonOrdUtxos.length === 0) {
+    throw new Error("Balance not enough");
+  }
+
+  const unspent = tx.getUnspent();
+  if (unspent === 0) {
+    throw new Error("Balance not enough to pay network fee.");
+  }
+
+  // add dummy output
+  tx.addChangeOutput(1);
+
+  const networkFee = await tx.calNetworkFee();
+  if (unspent < networkFee) {
+    throw new Error(
+      `Balance not enough. Need ${satoshisToAmount(
+        networkFee
+      )} BTC as network fee, but only ${satoshisToAmount(unspent)} BTC.`
+    );
+  }
+
+  const leftAmount = unspent - networkFee;
+  if (leftAmount >= UTXO_DUST) {
+    // change dummy output to true output
+    tx.getChangeOutput().value = leftAmount;
+  } else {
+    // remove dummy output
+    tx.removeChangeOutput();
+  }
+
+  const psbt = await tx.createSignedPsbt();
+  if (dump) {
+    tx.dumpTx(psbt);
+  }
+
+  return psbt;
+}
