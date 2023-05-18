@@ -123,11 +123,16 @@ export class OrdTransaction {
   private network: bitcoin.Network = bitcoin.networks.bitcoin;
   private feeRate: number;
   private pubkey: string;
+  private enableRBF = true;
   constructor(wallet: any, network: any, pubkey: string, feeRate?: number) {
     this.wallet = wallet;
     this.network = network;
     this.pubkey = pubkey;
     this.feeRate = feeRate || 5;
+  }
+
+  setEnableRBF(enable: boolean) {
+    this.enableRBF = enable;
   }
 
   setChangeAddress(address: string) {
@@ -219,7 +224,9 @@ export class OrdTransaction {
         psbt.__CACHE.__UNSAFE_SIGN_NONSEGWIT = true;
       }
       psbt.addInput(v.data);
-      psbt.setInputSequence(index, 0xfffffffd); // support RBF
+      if (this.enableRBF) {
+        psbt.setInputSequence(index, 0xfffffffd); // support RBF
+      }
     });
 
     this.outputs.forEach((v) => {

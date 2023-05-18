@@ -13,6 +13,7 @@ export async function createSendBTC({
   feeRate,
   pubkey,
   dump,
+  enableRBF = true,
 }: {
   utxos: UnspentOutput[];
   toAddress: string;
@@ -24,8 +25,10 @@ export async function createSendBTC({
   feeRate?: number;
   pubkey: string;
   dump?: boolean;
+  enableRBF?: boolean;
 }) {
   const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
+  tx.setEnableRBF(enableRBF);
   tx.setChangeAddress(changeAddress);
 
   const nonOrdUtxos: UnspentOutput[] = [];
@@ -127,6 +130,7 @@ export async function createSendOrd({
   feeRate,
   outputValue,
   dump,
+  enableRBF = true,
 }: {
   utxos: UnspentOutput[];
   toAddress: string;
@@ -138,8 +142,10 @@ export async function createSendOrd({
   feeRate?: number;
   outputValue: number;
   dump?: boolean;
+  enableRBF?: boolean;
 }) {
   const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
+  tx.setEnableRBF(enableRBF);
   tx.setChangeAddress(changeAddress);
 
   const nonOrdUtxos: UnspentOutput[] = [];
@@ -239,6 +245,7 @@ export async function createSendMultiOrds({
   pubkey,
   feeRate,
   dump,
+  enableRBF = true,
 }: {
   utxos: UnspentOutput[];
   toAddress: string;
@@ -249,8 +256,10 @@ export async function createSendMultiOrds({
   pubkey: string;
   feeRate?: number;
   dump?: boolean;
+  enableRBF?: boolean;
 }) {
   const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
+  tx.setEnableRBF(enableRBF);
   tx.setChangeAddress(changeAddress);
 
   const nonOrdUtxos: UnspentOutput[] = [];
@@ -350,6 +359,7 @@ export async function createSendMultiBTC({
   feeRate,
   pubkey,
   dump,
+  enableRBF = true,
 }: {
   utxos: UnspentOutput[];
   receivers: {
@@ -362,8 +372,10 @@ export async function createSendMultiBTC({
   feeRate?: number;
   pubkey: string;
   dump?: boolean;
+  enableRBF?: boolean;
 }) {
   const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
+  tx.setEnableRBF(enableRBF);
   tx.setChangeAddress(changeAddress);
 
   const nonOrdUtxos: UnspentOutput[] = [];
