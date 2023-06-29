@@ -21,6 +21,7 @@ async function dummySendBTC({
   toAddress,
   dump,
   receiverToPayFee,
+  enableRBF,
 }: {
   testUtxoDatas: TestUtxoData[];
   toAmount: number;
@@ -28,6 +29,7 @@ async function dummySendBTC({
   toAddress: string;
   dump?: boolean;
   receiverToPayFee?: boolean;
+  enableRBF?: boolean;
 }) {
   const addressType = AddressType.P2WPKH;
   const networkType = NetworkType.TESTNET;
@@ -64,6 +66,7 @@ async function dummySendBTC({
     feeRate,
     dump,
     receiverToPayFee,
+    enableRBF,
   };
 
   const psbt = await createSendBTC(params);

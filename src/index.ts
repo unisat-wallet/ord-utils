@@ -1,4 +1,5 @@
 import { OrdTransaction, UnspentOutput } from "./OrdTransaction";
+import { OrdUnit } from "./OrdUnit";
 import { OrdUnspendOutput, UTXO_DUST } from "./OrdUnspendOutput";
 import { satoshisToAmount } from "./utils";
 
@@ -418,6 +419,126 @@ export async function createSendMultiBTC({
 
   const unspent = tx.getUnspent();
   if (unspent === 0) {
+    throw new Error("Balance not enough to pay network fee.");
+  }
+
+  // add dummy output
+  tx.addChangeOutput(1);
+
+  const networkFee = await tx.calNetworkFee();
+  if (unspent < networkFee) {
+    throw new Error(
+      `Balance not enough. Need ${satoshisToAmount(
+        networkFee
+      )} BTC as network fee, but only ${satoshisToAmount(unspent)} BTC.`
+    );
+  }
+
+  const leftAmount = unspent - networkFee;
+  if (leftAmount >= UTXO_DUST) {
+    // change dummy output to true output
+    tx.getChangeOutput().value = leftAmount;
+  } else {
+    // remove dummy output
+    tx.removeChangeOutput();
+  }
+
+  const psbt = await tx.createSignedPsbt();
+  if (dump) {
+    tx.dumpTx(psbt);
+  }
+
+  return psbt;
+}
+
+export async function createSplitOrdUtxo({
+  utxos,
+  toAddress,
+  wallet,
+  network,
+  changeAddress,
+  pubkey,
+  feeRate,
+  dump,
+  enableRBF = true,
+}: {
+  utxos: UnspentOutput[];
+  toAddress: string;
+  wallet: any;
+  network: any;
+  changeAddress: string;
+  pubkey: string;
+  feeRate?: number;
+  dump?: boolean;
+  enableRBF?: boolean;
+}) {
+  const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
+  tx.setEnableRBF(enableRBF);
+  tx.setChangeAddress(changeAddress);
+
+  const nonOrdUtxos: OrdUnspendOutput[] = [];
+  const ordUtxos: OrdUnspendOutput[] = [];
+  utxos.forEach((v) => {
+    const ordUtxo = new OrdUnspendOutput(v);
+    if (v.ords.length > 0) {
+      ordUtxos.push(ordUtxo);
+    } else {
+      nonOrdUtxos.push(ordUtxo);
+    }
+  });
+
+  ordUtxos.sort((a, b) => a.getLastUnitSatoshis() - b.getLastUnitSatoshis());
+
+  let lastUnit: OrdUnit = null;
+  for (let i = 0; i < ordUtxos.length; i++) {
+    const ordUtxo = ordUtxos[i];
+    if (ordUtxo.hasOrd()) {
+      tx.addInput(ordUtxo.utxo);
+      let tmpOutputCounts = 0;
+      for (let j = 0; j < ordUtxo.ordUnits.length; j++) {
+        const unit = ordUtxo.ordUnits[j];
+        if (unit.hasOrd()) {
+          tx.addChangeOutput(unit.satoshis);
+          lastUnit = unit;
+          tmpOutputCounts++;
+          continue;
+        }
+        tx.addChangeOutput(unit.satoshis);
+        lastUnit = unit;
+      }
+    }
+  }
+
+  if (!lastUnit.hasOrd()) {
+    tx.removeChangeOutput();
+  }
+
+  if (lastUnit.satoshis < UTXO_DUST) {
+    lastUnit.satoshis = UTXO_DUST;
+  }
+
+  // select non ord utxo
+  const outputAmount = tx.getTotalOutput();
+  let tmpSum = tx.getTotalInput();
+  for (let i = 0; i < nonOrdUtxos.length; i++) {
+    const nonOrdUtxo = nonOrdUtxos[i];
+    if (tmpSum < outputAmount) {
+      tx.addInput(nonOrdUtxo.utxo);
+      tmpSum += nonOrdUtxo.utxo.satoshis;
+      continue;
+    }
+
+    const fee = await tx.calNetworkFee();
+    if (tmpSum < outputAmount + fee) {
+      tx.addInput(nonOrdUtxo.utxo);
+      tmpSum += nonOrdUtxo.utxo.satoshis;
+    } else {
+      break;
+    }
+  }
+
+  const unspent = tx.getUnspent();
+  if (unspent == 0) {
     throw new Error("Balance not enough to pay network fee.");
   }
 

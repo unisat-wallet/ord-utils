@@ -277,7 +277,7 @@ export class OrdTransaction {
     const tx = psbt.extractTransaction();
     const size = tx.toBuffer().length;
     const feePaid = psbt.getFee();
-    const feeRate = (feePaid / size).toFixed(4);
+    const feeRate = psbt.getFeeRate();
 
     console.log(`
 =============================================================================================
@@ -285,7 +285,7 @@ Summary
   txid:     ${tx.getId()}
   Size:     ${tx.byteLength()}
   Fee Paid: ${psbt.getFee()}
-  Fee Rate: ${feeRate} sat/B
+  Fee Rate: ${feeRate} sat/vB
   Detail:   ${psbt.txInputs.length} Inputs, ${psbt.txOutputs.length} Outputs
 ----------------------------------------------------------------------------------------------
 Inputs
@@ -310,7 +310,7 @@ ${this.outputs
   })
   .join("")}
 
-total: ${this.getTotalOutput() - feePaid} Sats
+total: ${this.getTotalOutput()} Sats
 =============================================================================================
     `);
   }
