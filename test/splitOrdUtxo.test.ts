@@ -21,12 +21,10 @@ interface TestUtxoData {
 async function dummySplitOrdUtxo({
   testUtxoDatas,
   feeRate,
-  toAddress,
   dump,
 }: {
   testUtxoDatas: TestUtxoData[];
   feeRate: number;
-  toAddress: string;
   dump?: boolean;
 }) {
   const addressType = AddressType.P2WPKH;
@@ -55,7 +53,6 @@ async function dummySplitOrdUtxo({
   });
   const params = {
     utxos,
-    toAddress,
     wallet,
     network,
     changeAddress: wallet.address,
@@ -80,7 +77,6 @@ describe("splitOrdUtxo", () => {
   describe("basic", function () {
     it("split UTXO containing one inscription", async function () {
       const { txid } = await dummySplitOrdUtxo({
-        toAddress: BOB_ADDRESS,
         testUtxoDatas: [
           { satoshis: 10000, ords: [{ id: "001", offset: 1000 }] },
           { satoshis: 10000 },
@@ -95,7 +91,6 @@ describe("splitOrdUtxo", () => {
 
     it("split UTXO containing two inscriptions", async function () {
       const { txid } = await dummySplitOrdUtxo({
-        toAddress: BOB_ADDRESS,
         testUtxoDatas: [
           {
             satoshis: 10000,
@@ -116,7 +111,6 @@ describe("splitOrdUtxo", () => {
 
     it("split UTXO containing six inscriptions", async function () {
       const { txid } = await dummySplitOrdUtxo({
-        toAddress: BOB_ADDRESS,
         testUtxoDatas: [
           {
             satoshis: 10000,
@@ -144,7 +138,6 @@ describe("splitOrdUtxo", () => {
     it("The ord is in the last sat", async function () {
       try {
         const { txid } = await dummySplitOrdUtxo({
-          toAddress: BOB_ADDRESS,
           testUtxoDatas: [
             {
               satoshis: 10000,
@@ -161,7 +154,6 @@ describe("splitOrdUtxo", () => {
 
     it("The ord is in the last sat", async function () {
       const { txid } = await dummySplitOrdUtxo({
-        toAddress: BOB_ADDRESS,
         testUtxoDatas: [
           {
             satoshis: 10000,
@@ -182,7 +174,6 @@ describe("splitOrdUtxo", () => {
 
     it("Two ord within 546", async function () {
       const { txid } = await dummySplitOrdUtxo({
-        toAddress: BOB_ADDRESS,
         testUtxoDatas: [
           {
             satoshis: 10000,
@@ -203,7 +194,6 @@ describe("splitOrdUtxo", () => {
     it("The ord is in the last sat", async function () {
       try {
         const { txid } = await dummySplitOrdUtxo({
-          toAddress: BOB_ADDRESS,
           testUtxoDatas: [
             {
               satoshis: 10000,

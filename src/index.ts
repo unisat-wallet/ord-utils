@@ -453,7 +453,6 @@ export async function createSendMultiBTC({
 
 export async function createSplitOrdUtxo({
   utxos,
-  toAddress,
   wallet,
   network,
   changeAddress,
@@ -463,7 +462,6 @@ export async function createSplitOrdUtxo({
   enableRBF = true,
 }: {
   utxos: UnspentOutput[];
-  toAddress: string;
   wallet: any;
   network: any;
   changeAddress: string;
