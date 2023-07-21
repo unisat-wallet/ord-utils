@@ -460,6 +460,7 @@ export async function createSplitOrdUtxo({
   feeRate,
   dump,
   enableRBF = true,
+  outputValue = 546,
 }: {
   utxos: UnspentOutput[];
   wallet: any;
@@ -469,6 +470,42 @@ export async function createSplitOrdUtxo({
   feeRate?: number;
   dump?: boolean;
   enableRBF?: boolean;
+  outputValue?: number;
+}) {
+  const { psbt } = await createSplitOrdUtxoV2({
+    utxos,
+    wallet,
+    network,
+    changeAddress,
+    pubkey,
+    feeRate,
+    dump,
+    enableRBF,
+    outputValue,
+  });
+  return psbt;
+}
+
+export async function createSplitOrdUtxoV2({
+  utxos,
+  wallet,
+  network,
+  changeAddress,
+  pubkey,
+  feeRate,
+  dump,
+  enableRBF = true,
+  outputValue = 546,
+}: {
+  utxos: UnspentOutput[];
+  wallet: any;
+  network: any;
+  changeAddress: string;
+  pubkey: string;
+  feeRate?: number;
+  dump?: boolean;
+  enableRBF?: boolean;
+  outputValue?: number;
 }) {
   const tx = new OrdTransaction(wallet, network, pubkey, feeRate);
   tx.setEnableRBF(enableRBF);
@@ -477,7 +514,7 @@ export async function createSplitOrdUtxo({
   const nonOrdUtxos: OrdUnspendOutput[] = [];
   const ordUtxos: OrdUnspendOutput[] = [];
   utxos.forEach((v) => {
-    const ordUtxo = new OrdUnspendOutput(v);
+    const ordUtxo = new OrdUnspendOutput(v, outputValue);
     if (v.ords.length > 0) {
       ordUtxos.push(ordUtxo);
     } else {
@@ -488,6 +525,7 @@ export async function createSplitOrdUtxo({
   ordUtxos.sort((a, b) => a.getLastUnitSatoshis() - b.getLastUnitSatoshis());
 
   let lastUnit: OrdUnit = null;
+  let splitedCount = 0;
   for (let i = 0; i < ordUtxos.length; i++) {
     const ordUtxo = ordUtxos[i];
     if (ordUtxo.hasOrd()) {
@@ -499,6 +537,7 @@ export async function createSplitOrdUtxo({
           tx.addChangeOutput(unit.satoshis);
           lastUnit = unit;
           tmpOutputCounts++;
+          splitedCount++;
           continue;
         }
         tx.addChangeOutput(unit.satoshis);
@@ -566,5 +605,5 @@ export async function createSplitOrdUtxo({
     tx.dumpTx(psbt);
   }
 
-  return psbt;
+  return { psbt, splitedCount };
 }

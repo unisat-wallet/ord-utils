@@ -6,12 +6,16 @@ export const UTXO_DUST = 546;
 export class OrdUnspendOutput {
   ordUnits: OrdUnit[];
   utxo: UnspentOutput;
-  constructor(utxo: UnspentOutput) {
+  constructor(utxo: UnspentOutput, outputValue?: number) {
     this.utxo = utxo;
-    this.split(utxo.satoshis, utxo.ords);
+    this.split(utxo.satoshis, utxo.ords, outputValue);
   }
 
-  private split(satoshis: number, ords: { id: string; offset: number }[]) {
+  private split(
+    satoshis: number,
+    ords: { id: string; offset: number }[],
+    splitOutputValue = UTXO_DUST
+  ) {
     const ordUnits: OrdUnit[] = [];
     let leftAmount = satoshis;
     for (let i = 0; i < ords.length; i++) {
@@ -20,8 +24,8 @@ export class OrdUnspendOutput {
 
       let splitAmount = offset - (satoshis - leftAmount);
       const a = leftAmount - splitAmount;
-      if (a < UTXO_DUST) {
-        splitAmount -= UTXO_DUST;
+      if (a < splitOutputValue) {
+        splitAmount -= splitOutputValue;
       }
 
       if (splitAmount < 0) {
@@ -47,11 +51,11 @@ export class OrdUnspendOutput {
         continue;
       }
 
-      if (leftAmount - splitAmount)
-        if (splitAmount > UTXO_DUST) {
+      if (leftAmount > splitAmount) {
+        if (splitAmount > splitOutputValue) {
           ordUnits.push(new OrdUnit(splitAmount, []));
           ordUnits.push(
-            new OrdUnit(UTXO_DUST, [
+            new OrdUnit(splitOutputValue, [
               {
                 id,
                 outputOffset: offset,
@@ -61,13 +65,14 @@ export class OrdUnspendOutput {
           );
         } else {
           ordUnits.push(
-            new OrdUnit(UTXO_DUST + splitAmount, [
+            new OrdUnit(splitOutputValue + splitAmount, [
               { id, outputOffset: offset, unitOffset: 0 },
             ])
           );
         }
+      }
 
-      leftAmount -= splitAmount + UTXO_DUST;
+      leftAmount -= splitAmount + splitOutputValue;
     }
 
     if (leftAmount > UTXO_DUST) {

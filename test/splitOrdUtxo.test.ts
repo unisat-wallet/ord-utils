@@ -11,6 +11,7 @@ import {
   createSendMultiOrds,
   createSendOrd,
   createSplitOrdUtxo,
+  createSplitOrdUtxoV2,
 } from "../src";
 
 interface TestUtxoData {
@@ -22,10 +23,12 @@ async function dummySplitOrdUtxo({
   testUtxoDatas,
   feeRate,
   dump,
+  outputValue,
 }: {
   testUtxoDatas: TestUtxoData[];
   feeRate: number;
   dump?: boolean;
+  outputValue?: number;
 }) {
   const addressType = AddressType.P2WPKH;
   const networkType = NetworkType.TESTNET;
@@ -60,11 +63,12 @@ async function dummySplitOrdUtxo({
     pubkey: wallet.pubkey,
     feeRate,
     dump,
+    outputValue,
   };
 
-  const psbt = await createSplitOrdUtxo(params);
+  const { psbt, splitedCount } = await createSplitOrdUtxoV2(params);
   const txid = psbt.extractTransaction().getId();
-  return { psbt, txid };
+  return { psbt, txid, splitedCount };
 }
 
 const BOB_ADDRESS = "tb1qmfla5j7cpdvmswtruldgvjvk87yrflrfsf6hh0";
@@ -76,7 +80,7 @@ describe("splitOrdUtxo", () => {
 
   describe("basic", function () {
     it("split UTXO containing one inscription", async function () {
-      const { txid } = await dummySplitOrdUtxo({
+      const { txid, splitedCount } = await dummySplitOrdUtxo({
         testUtxoDatas: [
           { satoshis: 10000, ords: [{ id: "001", offset: 1000 }] },
           { satoshis: 10000 },
@@ -87,10 +91,11 @@ describe("splitOrdUtxo", () => {
       expect(txid).eq(
         "74a05591537956c362b65f36b9e229eab18c0f1944a4cf8e87ad3d4436cca13f"
       );
+      expect(splitedCount).eq(1);
     });
 
     it("split UTXO containing two inscriptions", async function () {
-      const { txid } = await dummySplitOrdUtxo({
+      const { txid, splitedCount } = await dummySplitOrdUtxo({
         testUtxoDatas: [
           {
             satoshis: 10000,
@@ -107,10 +112,11 @@ describe("splitOrdUtxo", () => {
       expect(txid).eq(
         "f12cbd6403c3ea96a71eb0289451f4017326e7bd743a78557358bf1185949efb"
       );
+      expect(splitedCount).eq(2);
     });
 
     it("split UTXO containing six inscriptions", async function () {
-      const { txid } = await dummySplitOrdUtxo({
+      const { txid, splitedCount } = await dummySplitOrdUtxo({
         testUtxoDatas: [
           {
             satoshis: 10000,
@@ -131,6 +137,47 @@ describe("splitOrdUtxo", () => {
       expect(txid).eq(
         "281d4740b6198237f27f0c81cd7014a37ddd103d7548ca5ccaa86b651d5aeca1"
       );
+      expect(splitedCount).eq(5);
+    });
+  });
+
+  describe("custom output value", function () {
+    it("split UTXO containing one inscription", async function () {
+      const { txid, splitedCount } = await dummySplitOrdUtxo({
+        testUtxoDatas: [
+          { satoshis: 10000, ords: [{ id: "001", offset: 1000 }] },
+          { satoshis: 10000 },
+        ],
+        feeRate: 1,
+        outputValue: 600,
+        // dump: true,
+      });
+      expect(txid).eq(
+        "a51edc166e5005313928adc34fadda7a21a16ebae114daa812340e188b554734"
+      );
+      expect(splitedCount).eq(1);
+    });
+
+    it("split UTXO containing two inscriptions", async function () {
+      const { txid, splitedCount } = await dummySplitOrdUtxo({
+        testUtxoDatas: [
+          {
+            satoshis: 10000,
+            ords: [
+              { id: "001", offset: 1000 },
+              { id: "002", offset: 3000 },
+            ],
+          },
+          { satoshis: 10000 },
+        ],
+        feeRate: 1,
+        outputValue: 600,
+        // dump: true,
+      });
+      expect(txid).eq(
+        "9f38cea296aa5250c5bc7326efc3894f6866c859f089e17f11475bd881f88660"
+      );
+      expect(splitedCount).eq(2);
     });
   });
 
@@ -206,6 +253,27 @@ describe("splitOrdUtxo", () => {
       } catch (e) {
         expect(e.message).eq("Balance not enough to pay network fee.");
       }
+    });
+
+    it("split UTXO containing two adjacent inscriptions (not support)", async function () {
+      const { txid, splitedCount } = await dummySplitOrdUtxo({
+        testUtxoDatas: [
+          {
+            satoshis: 546,
+            ords: [
+              { id: "001", offset: 0 },
+              { id: "002", offset: 200 },
+            ],
+          },
+          { satoshis: 10000 },
+        ],
+        feeRate: 1,
+        // dump: true,
+      });
+      expect(txid).eq(
+        "804b62a7b7797b99cbf79820292dbfbc5a9de83bf1a6caadab1912a453238533"
+      );
+      expect(splitedCount).eq(1);
     });
   });
 });
