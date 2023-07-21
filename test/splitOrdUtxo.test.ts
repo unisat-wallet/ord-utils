@@ -135,7 +135,7 @@ describe("splitOrdUtxo", () => {
         // dump: true,
       });
       expect(txid).eq(
-        "281d4740b6198237f27f0c81cd7014a37ddd103d7548ca5ccaa86b651d5aeca1"
+        "190d3a3974a58e62d575dc8847fb15b24c379fe2472ebe5b8072cca485496b1c"
       );
       expect(splitedCount).eq(5);
     });
@@ -179,6 +179,29 @@ describe("splitOrdUtxo", () => {
       );
       expect(splitedCount).eq(2);
     });
+
+    it("split UTXO containing three inscriptions", async function () {
+      const { txid, splitedCount } = await dummySplitOrdUtxo({
+        testUtxoDatas: [
+          {
+            satoshis: 1638,
+            ords: [
+              { id: "001", offset: 0 },
+              { id: "002", offset: 546 },
+              { id: "003", offset: 1092 },
+            ],
+          },
+          { satoshis: 10000 },
+        ],
+        feeRate: 1,
+        outputValue: 600,
+        // dump: true,
+      });
+      expect(txid).eq(
+        "8b590c21899dad0961efd2b895548fb631211eca8f7f632ca076e093de742856"
+      );
+      expect(splitedCount).eq(2);
+    });
   });
 
   describe("boundary cases", function () {
@@ -215,7 +238,7 @@ describe("splitOrdUtxo", () => {
         // dump: true,
       });
       expect(txid).eq(
-        "2134cc706638e9b8c51159c9bd59e8f80c65b92d9131be0b23cc4a3296b24600"
+        "9bf45892315d800724255e8579069bb520eb1c684120c92e5c40bdf58ed9e5b2"
       );
     });
 
@@ -248,7 +271,7 @@ describe("splitOrdUtxo", () => {
             },
           ],
           feeRate: 1,
-          dump: true,
+          // dump: true,
         });
       } catch (e) {
         expect(e.message).eq("Balance not enough to pay network fee.");

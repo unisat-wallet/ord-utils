@@ -86,7 +86,7 @@ export async function createSendBTC({
     output.value -= networkFee;
   } else {
     const unspent = tx.getUnspent();
-    if (unspent === 0) {
+    if (unspent <= 0) {
       throw new Error("Balance not enough to pay network fee.");
     }
 
@@ -203,7 +203,7 @@ export async function createSendOrd({
   }
 
   const unspent = tx.getUnspent();
-  if (unspent == 0) {
+  if (unspent <= 0) {
     throw new Error("Balance not enough to pay network fee.");
   }
 
@@ -318,7 +318,7 @@ export async function createSendMultiOrds({
   }
 
   const unspent = tx.getUnspent();
-  if (unspent == 0) {
+  if (unspent <= 0) {
     throw new Error("Balance not enough to pay network fee.");
   }
 
@@ -418,7 +418,7 @@ export async function createSendMultiBTC({
   }
 
   const unspent = tx.getUnspent();
-  if (unspent === 0) {
+  if (unspent <= 0) {
     throw new Error("Balance not enough to pay network fee.");
   }
 
@@ -573,9 +573,8 @@ export async function createSplitOrdUtxoV2({
       break;
     }
   }
-
   const unspent = tx.getUnspent();
-  if (unspent == 0) {
+  if (unspent <= 0) {
     throw new Error("Balance not enough to pay network fee.");
   }
 

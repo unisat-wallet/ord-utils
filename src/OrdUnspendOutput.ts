@@ -22,57 +22,66 @@ export class OrdUnspendOutput {
       const id = ords[i].id;
       const offset = ords[i].offset;
 
-      let splitAmount = offset - (satoshis - leftAmount);
-      const a = leftAmount - splitAmount;
-      if (a < splitOutputValue) {
-        splitAmount -= splitOutputValue;
-      }
-
-      if (splitAmount < 0) {
+      const usedSatoshis = satoshis - leftAmount;
+      const curOffset = offset - usedSatoshis;
+      if (curOffset < 0 || leftAmount < splitOutputValue) {
         if (ordUnits.length == 0) {
           ordUnits.push(
             new OrdUnit(leftAmount, [
               {
                 id: id,
                 outputOffset: offset,
-                unitOffset: 0,
+                unitOffset: curOffset,
               },
             ])
           );
           leftAmount = 0;
         } else {
-          // sequnce?
-          ordUnits[ordUnits.length - 1].ords.push({
+          // injected to previous
+          const preUnit = ordUnits[ordUnits.length - 1];
+          preUnit.ords.push({
             id,
             outputOffset: offset,
-            unitOffset: ordUnits[ordUnits.length - 1].satoshis,
+            unitOffset: preUnit.satoshis + curOffset,
           });
+          continue;
         }
-        continue;
       }
 
-      if (leftAmount > splitAmount) {
-        if (splitAmount > splitOutputValue) {
-          ordUnits.push(new OrdUnit(splitAmount, []));
-          ordUnits.push(
-            new OrdUnit(splitOutputValue, [
-              {
-                id,
-                outputOffset: offset,
-                unitOffset: 0,
-              },
-            ])
-          );
+      if (leftAmount >= curOffset) {
+        if (leftAmount > splitOutputValue * 2) {
+          if (curOffset >= splitOutputValue) {
+            ordUnits.push(new OrdUnit(curOffset, []));
+            ordUnits.push(
+              new OrdUnit(splitOutputValue, [
+                {
+                  id,
+                  outputOffset: offset,
+                  unitOffset: 0,
+                },
+              ])
+            );
+          } else {
+            ordUnits.push(
+              new OrdUnit(curOffset + splitOutputValue, [
+                {
+                  id,
+                  outputOffset: offset,
+                  unitOffset: curOffset,
+                },
+              ])
+            );
+          }
         } else {
           ordUnits.push(
-            new OrdUnit(splitOutputValue + splitAmount, [
-              { id, outputOffset: offset, unitOffset: 0 },
+            new OrdUnit(curOffset + splitOutputValue, [
+              { id, outputOffset: offset, unitOffset: curOffset },
             ])
           );
         }
       }
 
-      leftAmount -= splitAmount + splitOutputValue;
+      leftAmount -= curOffset + splitOutputValue;
     }
 
     if (leftAmount > UTXO_DUST) {
