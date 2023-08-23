@@ -1,6 +1,6 @@
 import * as bitcoin from "bitcoinjs-lib";
 import { isTaprootInput } from "bitcoinjs-lib/src/psbt/bip371";
-import * as ecc from "tiny-secp256k1";
+import ecc from "@bitcoinerlab/secp256k1";
 bitcoin.initEccLib(ecc);
 import ECPairFactory, { ECPairInterface } from "ecpair";
 import { AddressType } from "./OrdTransaction";

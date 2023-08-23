@@ -36,7 +36,7 @@
     "bitcoinjs-lib": "^6.1.0",
     "bs58check": "^2.1.2",
     "ecpair": "^2.1.0",
-    "tiny-secp256k1": "^2.2.1"
+    "@bitcoinerlab/secp256k1": "^1.0.5"
   },
   "devDependencies": {
     "@babel/core": "^7.16.7",
