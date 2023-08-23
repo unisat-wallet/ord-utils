@@ -1,6 +1,6 @@
 {
   "name": "@unisat/ord-utils",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Ordinals Utils",
   "keywords": [
     "bitcoin",
@@ -32,11 +32,11 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.0.5",
     "bignumber.js": "^9.1.1",
     "bitcoinjs-lib": "^6.1.0",
     "bs58check": "^2.1.2",
-    "ecpair": "^2.1.0",
-    "@bitcoinerlab/secp256k1": "^1.0.5"
+    "ecpair": "^2.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.16.7",
